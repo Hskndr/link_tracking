@@ -16,8 +16,18 @@ def find_links_on_page(url, target_domain, search_strings, current_depth, max_de
         soup = BeautifulSoup(response.text, 'html.parser')
         matching_links = []
 
-        page_text = soup.get_text()  # Obtener el contenido de la página como texto
-
+        for search_string in search_strings:
+            page_text = soup.get_text()  # Obtener el contenido de la página como texto
+            index = page_text.lower().find(search_string.lower())
+            if index != -1:
+                start_index = max(0, index - 20)  # Comenzar 20 caracteres antes de la coincidencia
+                end_index = min(len(page_text), index + len(search_string) + 20)  # Terminar 20 caracteres después de la coincidencia
+                context_text = page_text[start_index:end_index]
+                
+                print(f'Se encontró "{search_string}" en {url}')
+                print("Contexto alrededor de la coincidencia:")
+                print(context_text)
+        
         for link in soup.find_all('a'):
             href = link.get('href')
             if href:
@@ -26,15 +36,12 @@ def find_links_on_page(url, target_domain, search_strings, current_depth, max_de
                 # Verificar si el dominio extraído contiene target_domain
                 if target_domain in parsed_url.netloc:
                     matching_links.append(absolute_url)
-
-        for search_string in search_strings:
-            if search_string.lower() in page_text.lower():
-                print(f'Se encontró "{search_string}" en {url}')
         
         return matching_links, len(matching_links)
     except Exception as e:
         print(f"Error al acceder a {url}: {e}")
         return [], 0
+
 ## Módodulo para encontrar enlaces en sitios y cadena de caracteres
 
 
