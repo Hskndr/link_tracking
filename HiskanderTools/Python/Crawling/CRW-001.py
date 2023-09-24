@@ -310,6 +310,7 @@ import csv
 import pandas as pd  # Importar Pandas
 import time
 import random  # Importar el módulo random
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 # Las funciones find_links_on_page, evaluate_match y crawl_website_recursive permanecen sin cambios
 
@@ -386,44 +387,63 @@ def evaluate_match(search_string, context_text):
 
 
 # Módulo para Rastrear Sitio y encontrar enlaces.
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+
+# ...
 def crawl_website_recursive(url, target_domain, search_strings, max_depth, current_depth=1, max_requests=35):
     if current_depth > max_depth:
         return []
 
     visited_urls = set()
-    to_visit = [(url, current_depth)]  # Usar una tupla para almacenar la URL y su profundidad
+    to_visit = [(url, current_depth)]
     matching_links = []
     verified_matches = 0
     request_counter = 0
 
-    while to_visit and (verified_matches < 2 or verified_matches > 3) and request_counter <= max_requests:
-        url, current_depth = to_visit.pop()
-        visited_urls.add(url)
+    with ThreadPoolExecutor() as executor:
+        while to_visit and (verified_matches < 2 or verified_matches > 3) and request_counter <= max_requests:
+            start_time_iteration = time.time()
+            url, current_depth = to_visit.pop()
+            visited_urls.add(url)
 
-        links_on_page, num_links, verified_matches = find_links_on_page(url, target_domain, search_strings, current_depth, max_depth, verified_matches, max_requests)
-        matching_links.extend(links_on_page)
+            def process_url(url, verified_matches):
+                links_on_page, num_links, verified_matches = find_links_on_page(url, target_domain, search_strings, current_depth, max_depth, verified_matches, max_requests)
+                print(links_on_page)
+                return links_on_page
 
-        #print(f"Nivel de profundidad {current_depth}: Número de enlaces en {url}: {num_links}")
-        #print("Request ",request_counter)
-        
-        if request_counter % 15 == 0:
-            # Hacer una pausa de 12 segundos cada 15 iteraciones
-            random_delay_Long = random.uniform(13,15)
-            print(f"Haciendo una pausa de {random_delay_Long} segundos... en request{request_counter}")
-            time.sleep(random_delay_Long)
-        else:
-             # Generar un retraso aleatorio entre 8 y 10 segundos
-            random_delay = random.uniform(5, 8)
-            print(f"Esperando {random_delay} segundos... en request: {request_counter}")
-            time.sleep(random_delay)
-        
-        for link in links_on_page:
-            if link not in visited_urls and current_depth < max_depth:
-                to_visit.append((link, current_depth + 1))  # Incrementar la profundidad
+            try:
+                links_on_page = executor.submit(process_url, url, verified_matches).result(timeout=35)
+            except TimeoutError:
+                print(f"La iteración para {url} superó el límite de tiempo de 35 segundos, continuando con la siguiente iteración.")
+                            
+            elapsed_time_iteration = time.time() - start_time_iteration
+            
+            if elapsed_time_iteration > 35:
+                print(f"La iteración para {url} tomó demasiado tiempo ({elapsed_time_iteration} segundos), continuando con la siguiente iteración.")
+            
+            matching_links.extend(links_on_page)
+            # print('matching2',matching_links) No se imprime TODO:
+            
+            if request_counter % 15 == 0:
+                random_delay_Long = random.uniform(13, 15)
+                print(f"Haciendo una pausa de {random_delay_Long} segundos... en request{request_counter}")
+                time.sleep(random_delay_Long)
+            else:
+                random_delay = random.uniform(5, 8)
+                print(f"Esperando {random_delay} segundos... en request: {request_counter}")
+                time.sleep(random_delay)
 
-        request_counter += 1
+            for link in links_on_page:
+                if link not in visited_urls and current_depth < max_depth:
+                    to_visit.append((link, current_depth + 1))
 
-    return matching_links,verified_matches
+            request_counter += 1
+
+    return matching_links, verified_matches
+
+
+
 # ... (resto del código sin cambios)
 
 # Función para leer las URLs desde un archivo CSV utilizando Pandas
